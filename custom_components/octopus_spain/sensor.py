@@ -413,6 +413,7 @@ class OctopusConsumptionStatisticsImporter:
                 "source": DOMAIN,
                 "statistic_id": self._statistic_id,
                 "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+                "unit_class": "energy",
                 "mean_type": 0,
             }
             _LOGGER.debug("%s: filled metadata statistics metadata=%s", prefix, metadata)
