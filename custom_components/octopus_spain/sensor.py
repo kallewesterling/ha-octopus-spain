@@ -8,7 +8,6 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
-    SensorDeviceClass,
 )
 from homeassistant.const import (
     CURRENCY_EURO,
@@ -168,7 +167,6 @@ class OctopusConsumption(CoordinatorEntity[OctopusCoordinator], SensorEntity):
             key=f"hourly_consumption_{account}",
             icon="mdi:lightning-bolt",
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            device_class=SensorDeviceClass.ENERGY,
             state_class=SensorStateClass.MEASUREMENT,
         )
 
@@ -415,6 +413,7 @@ class OctopusConsumptionStatisticsImporter:
                 "source": DOMAIN,
                 "statistic_id": self._statistic_id,
                 "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+                "mean_type": 0,
             }
             _LOGGER.debug("%s: filled metadata statistics metadata=%s", prefix, metadata)
 
