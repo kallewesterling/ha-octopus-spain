@@ -8,6 +8,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
+    SensorDeviceClass,
 )
 from homeassistant.const import (
     CURRENCY_EURO,
@@ -57,6 +58,7 @@ async def async_setup_entry(
             )
         )
         sensors.append(OctopusInvoice(account, coordinator, single_account))
+        sensors.append(OctopusConsumption(account, coordinator, single_account))
     for account in accounts:
         importer = OctopusConsumptionStatisticsImporter(
             hass=hass,
@@ -148,6 +150,59 @@ class OctopusInvoice(CoordinatorEntity[OctopusCoordinator], SensorEntity):
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         return self._attrs
+
+
+class OctopusConsumption(CoordinatorEntity[OctopusCoordinator], SensorEntity):
+    """Sensor showing the latest hourly power consumption."""
+
+    def __init__(self, account: str, coordinator: OctopusCoordinator, single: bool) -> None:
+        super().__init__(coordinator=coordinator)
+        self._state = None
+        self._account = account
+        self._attrs: Mapping[str, Any] = {}
+        self._attr_name = "Consumo por Hora" if single else f"Consumo por Hora ({account})"
+        self._attr_unique_id = f"hourly_consumption_{account}"
+        self.entity_description = SensorEntityDescription(
+            key=f"hourly_consumption_{account}",
+            icon="mdi:lightning-bolt",
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.MEASUREMENT,
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._handle_coordinator_update()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        hourly_data = self.coordinator.data.get(self._account, {}).get("hourly_consumption", [])
+
+        if hourly_data:
+            # Get the most recent measurement
+            latest = hourly_data[-1]
+            self._state = latest.get("value")
+            self._attrs = {
+                "start_time": latest.get("startAt"),
+                "end_time": latest.get("endAt"),
+                "unit": latest.get("unit"),
+                "measurement_count": len(hourly_data),
+            }
+        else:
+            self._state = None
+            self._attrs = {}
+
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> StateType:
+        return self._state
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        return self._attrs
+
 
 class OctopusConsumptionStatisticsImporter:
     """Process coordinator data to feed historical consumption into statistics."""
