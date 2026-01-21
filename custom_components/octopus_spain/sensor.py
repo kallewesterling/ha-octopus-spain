@@ -103,7 +103,8 @@ class OctopusWallet(CoordinatorEntity[OctopusCoordinator], SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._state = self.coordinator.data[self._account][self._key]
+        account_data = self.coordinator.data.get(self._account, {})
+        self._state = account_data.get(self._key)
         self.async_write_ha_state()
 
     @property
@@ -134,12 +135,13 @@ class OctopusInvoice(CoordinatorEntity[OctopusCoordinator], SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        data = self.coordinator.data[self._account]['last_invoice']
-        self._state = data['amount']
+        account_data = self.coordinator.data.get(self._account, {})
+        data = account_data.get('last_invoice', {})
+        self._state = data.get('amount')
         self._attrs = {
-            'Inicio': data['start'],
-            'Fin': data['end'],
-            'Emitida': data['issued']
+            'Inicio': data.get('start'),
+            'Fin': data.get('end'),
+            'Emitida': data.get('issued')
         }
         self.async_write_ha_state()
 
@@ -408,14 +410,11 @@ class OctopusConsumptionStatisticsImporter:
                 return
 
             metadata = {
-                "mean_type": 0,
                 "has_sum": True,
                 "name": self._name,
                 "source": DOMAIN,
                 "statistic_id": self._statistic_id,
                 "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
-                "unit_class": None,
-                "new_unit_class": None,
             }
             _LOGGER.debug("%s: filled metadata statistics metadata=%s", prefix, metadata)
 
