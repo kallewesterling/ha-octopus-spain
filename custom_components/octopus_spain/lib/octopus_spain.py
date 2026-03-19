@@ -212,13 +212,11 @@ class OctopusSpain:
                     edges {
                       node {
                         id
-                        issuedDate
-                        consumptionStartDate
-                        consumptionEndDate
+                        firstIssuedAt
+                        startAt
+                        endAt
                         totalCharges {
-                          netTotal {
-                            value
-                          }
+                          netTotal
                         }
                       }
                     }
@@ -283,18 +281,17 @@ class OctopusSpain:
 
         invoice = invoices[0]["node"]
         try:
-            amount = invoice.get("totalCharges", {}).get("netTotal", {}).get("value")
+            amount = invoice.get("totalCharges", {}).get("netTotal")
         except (AttributeError, TypeError):
             amount = None
 
-        # Los timedelta son bastante chapuzas, habrá que arreglarlo
         return {
             "solar_wallet": (float(solar_wallet["balance"]) / 100),
             "octopus_credit": (float(electricity["balance"]) / 100),
             "last_invoice": {
-                "amount": float(amount) if amount is not None else 0,
-                "issued": datetime.fromisoformat(invoice["issuedDate"]).date() if invoice.get("issuedDate") else None,
-                "start": (datetime.fromisoformat(invoice["consumptionStartDate"]) + timedelta(hours=2)).date() if invoice.get("consumptionStartDate") else None,
-                "end": (datetime.fromisoformat(invoice["consumptionEndDate"]) - timedelta(seconds=1)).date() if invoice.get("consumptionEndDate") else None,
+                "amount": float(amount) / 100 if amount is not None else 0,
+                "issued": datetime.fromisoformat(invoice["firstIssuedAt"]).date() if invoice.get("firstIssuedAt") else None,
+                "start": datetime.fromisoformat(invoice["startAt"]).date() if invoice.get("startAt") else None,
+                "end": datetime.fromisoformat(invoice["endAt"]).date() if invoice.get("endAt") else None,
             },
         }

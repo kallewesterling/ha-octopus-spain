@@ -1,0 +1,4 @@
+pytest
+pytest-asyncio
+python-graphql-client
+python-dotenv
