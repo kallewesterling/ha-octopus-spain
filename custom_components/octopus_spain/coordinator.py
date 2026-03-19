@@ -32,7 +32,11 @@ class OctopusCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._data = {}
             accounts = await self._api.accounts()
             for account in accounts:
-                acc = await self._api.account(account)
+                try:
+                    acc = await self._api.account(account)
+                except Exception as err:  # pylint: disable=broad-except
+                    _LOGGER.exception("Failed to fetch account data for %s: %s", account, err)
+                    acc = {}
                 if "hourly_consumption" not in acc:
                     hourly_consumption: list[dict[str, Any]] = []
                     today = dt_util.utcnow().date()

@@ -203,57 +203,98 @@ class OctopusSpain:
     async def account(self, account: str):
         query = """
             query ($account: String!) {
-              accountBillingInfo(accountNumber: $account) {
+              account(accountNumber: $account) {
+                balance
                 ledgers {
                   ledgerType
-                  statementsWithDetails(first: 1) {
+                  balance
+                  statements(first: 1) {
                     edges {
                       node {
-                        amount
+                        id
+                        issuedDate
                         consumptionStartDate
                         consumptionEndDate
-                        issuedDate
+                        totalCharges {
+                          netTotal {
+                            value
+                          }
+                        }
                       }
                     }
                   }
-                  balance
                 }
               }
             }
         """
+        if self._token is None:
+            if not await self.login():
+                _LOGGER.error(
+                    "Unable to fetch account data for %s due to login failure", account
+                )
+                return {}
+
         headers = {"authorization": self._token}
         client = GraphqlClient(endpoint=GRAPH_QL_ENDPOINT, headers=headers)
         response = await client.execute_async(query, {"account": account})
-        ledgers = response["data"]["accountBillingInfo"]["ledgers"]
-        electricity = next(filter(lambda x: x['ledgerType'] == ELECTRICITY_LEDGER, ledgers), None)
-        solar_wallet = next(filter(lambda x: x['ledgerType'] == SOLAR_WALLET_LEDGER, ledgers), {'balance': 0})
+
+        if "errors" in response:
+            _LOGGER.error(
+                "GraphQL errors while fetching account data for %s: %s",
+                account,
+                response["errors"],
+            )
+            _LOGGER.debug("Full account response for %s: %s", account, response)
+            return {}
+
+        account_data = response.get("data", {}).get("account")
+        if not account_data:
+            _LOGGER.error(
+                "No account data returned for %s. Full response: %s", account, response
+            )
+            return {}
+
+        ledgers = account_data.get("ledgers", [])
+        electricity = next(filter(lambda x: x["ledgerType"] == ELECTRICITY_LEDGER, ledgers), None)
+        solar_wallet = next(filter(lambda x: x["ledgerType"] == SOLAR_WALLET_LEDGER, ledgers), {"balance": 0})
 
         if not electricity:
-            raise Exception("Electricity ledger not found")
+            _LOGGER.warning(
+                "Electricity ledger (%s) not found for account %s. Available ledgers: %s",
+                ELECTRICITY_LEDGER,
+                account,
+                [l.get("ledgerType") for l in ledgers],
+            )
+            return {}
 
-        invoices = electricity["statementsWithDetails"]["edges"]
+        invoices = electricity.get("statements", {}).get("edges", [])
 
         if len(invoices) == 0:
             return {
-                'solar_wallet': None,
-                'last_invoice': {
-                    'amount': None,
-                    'issued': None,
-                    'start': None,
-                    'end': None
-                }
+                "solar_wallet": None,
+                "octopus_credit": (float(electricity["balance"]) / 100),
+                "last_invoice": {
+                    "amount": None,
+                    "issued": None,
+                    "start": None,
+                    "end": None,
+                },
             }
 
         invoice = invoices[0]["node"]
+        try:
+            amount = invoice.get("totalCharges", {}).get("netTotal", {}).get("value")
+        except (AttributeError, TypeError):
+            amount = None
 
         # Los timedelta son bastante chapuzas, habrá que arreglarlo
         return {
             "solar_wallet": (float(solar_wallet["balance"]) / 100),
             "octopus_credit": (float(electricity["balance"]) / 100),
             "last_invoice": {
-                "amount": invoice["amount"] if invoice["amount"] else 0,
-                "issued": datetime.fromisoformat(invoice["issuedDate"]).date(),
-                "start": (datetime.fromisoformat(invoice["consumptionStartDate"]) + timedelta(hours=2)).date(),
-                "end": (datetime.fromisoformat(invoice["consumptionEndDate"]) - timedelta(seconds=1)).date(),
+                "amount": float(amount) if amount is not None else 0,
+                "issued": datetime.fromisoformat(invoice["issuedDate"]).date() if invoice.get("issuedDate") else None,
+                "start": (datetime.fromisoformat(invoice["consumptionStartDate"]) + timedelta(hours=2)).date() if invoice.get("consumptionStartDate") else None,
+                "end": (datetime.fromisoformat(invoice["consumptionEndDate"]) - timedelta(seconds=1)).date() if invoice.get("consumptionEndDate") else None,
             },
         }
