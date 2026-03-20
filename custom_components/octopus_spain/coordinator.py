@@ -28,31 +28,51 @@ class OctopusCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._data: dict[str, Any] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
-        if await self._api.login():
-            self._data = {}
-            accounts = await self._api.accounts()
-            for account in accounts:
-                try:
-                    acc = await self._api.account(account)
-                except Exception as err:  # pylint: disable=broad-except
-                    _LOGGER.exception("Failed to fetch account data for %s: %s", account, err)
-                    acc = {}
-                if "hourly_consumption" not in acc:
-                    hourly_consumption: list[dict[str, Any]] = []
-                    today = dt_util.utcnow().date()
-                    start_day = today - timedelta(days=2)
-                    day_cursor = start_day
-                    while day_cursor <= today:
-                        day_start = datetime.combine(day_cursor, time.min, dt_util.UTC)
-                        day_end = day_start + timedelta(days=1)
-                        fetched = await self._api.hourly_consumption(
-                            account, start=day_start, end=day_end
-                        )
-                        if fetched:
-                            hourly_consumption.extend(fetched)
-                        day_cursor += timedelta(days=1)
-                    acc["hourly_consumption"] = hourly_consumption
-                self._data[account] = acc
+        _LOGGER.info("OctopusCoordinator: starting data update")
+        login_ok = await self._api.login()
+        if not login_ok:
+            _LOGGER.warning("OctopusCoordinator: login failed — check credentials in integration config")
+            return self._data
+        _LOGGER.info("OctopusCoordinator: login succeeded")
+        self._data = {}
+        accounts = await self._api.accounts()
+        _LOGGER.info("OctopusCoordinator: found %d account(s): %s", len(accounts), accounts)
+        if not accounts:
+            _LOGGER.warning("OctopusCoordinator: no accounts returned by API")
+        for account in accounts:
+            try:
+                acc = await self._api.account(account)
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.exception("Failed to fetch account data for %s: %s", account, err)
+                acc = {}
+            _LOGGER.info(
+                "OctopusCoordinator: account %s data keys=%s",
+                account,
+                list(acc.keys()) if acc else "(empty)",
+            )
+            if "hourly_consumption" not in acc:
+                hourly_consumption: list[dict[str, Any]] = []
+                today = dt_util.utcnow().date()
+                start_day = today - timedelta(days=2)
+                day_cursor = start_day
+                while day_cursor <= today:
+                    day_start = datetime.combine(day_cursor, time.min, dt_util.UTC)
+                    day_end = day_start + timedelta(days=1)
+                    fetched = await self._api.hourly_consumption(
+                        account, start=day_start, end=day_end
+                    )
+                    _LOGGER.info(
+                        "OctopusCoordinator: account %s day %s → %d measurements",
+                        account,
+                        day_cursor,
+                        len(fetched) if fetched else 0,
+                    )
+                    if fetched:
+                        hourly_consumption.extend(fetched)
+                    day_cursor += timedelta(days=1)
+                acc["hourly_consumption"] = hourly_consumption
+            self._data[account] = acc
+        _LOGGER.info("OctopusCoordinator: update complete, data keys=%s", list(self._data.keys()))
         return self._data
 
     async def async_fetch_hourly_consumption(

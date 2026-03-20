@@ -36,9 +36,16 @@ class OctopusSpain:
         response = await client.execute_async(mutation, variables)
 
         if "errors" in response:
+            _LOGGER.warning("OctopusSpain: login failed — API errors: %s", response["errors"])
             return False
 
-        self._token = response["data"]["obtainKrakenToken"]["token"]
+        token = response.get("data", {}).get("obtainKrakenToken", {}).get("token")
+        if not token:
+            _LOGGER.warning(
+                "OctopusSpain: login response contained no token. Full response: %s", response
+            )
+            return False
+        self._token = token
         return True
 
     async def accounts(self):

@@ -46,6 +46,15 @@ async def async_setup_entry(
 
     sensors = []
     accounts = list(coordinator.data)
+    _LOGGER.info(
+        "async_setup_entry: coordinator data after first refresh — accounts=%s",
+        accounts if accounts else "(none — no sensors will be created)",
+    )
+    if not accounts:
+        _LOGGER.warning(
+            "async_setup_entry: coordinator returned no account data; "
+            "no sensor entities will be registered. Check HA logs for login/API errors."
+        )
     single_account = len(accounts) == 1
     for account in accounts:
         sensors.append(
