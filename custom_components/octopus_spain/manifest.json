@@ -1,6 +1,7 @@
 {
   "domain": "octopus_spain",
   "name": "Octopus Spain",
+  "after_dependencies": ["recorder"],
   "codeowners": ["@miguelangellv"],
   "config_flow": true,
   "documentation": "https://github.com/MiguelAngelLV/octopus_spain",
