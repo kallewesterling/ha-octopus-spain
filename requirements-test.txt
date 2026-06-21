@@ -1,4 +1,9 @@
 pytest
 pytest-asyncio
-python-graphql-client
 python-dotenv
+aiohttp
+# The API client (PyPI: octopus-kraken; imports as octopy). Once it is on PyPI,
+# this single line is enough:
+#   octopus-kraken[async]>=0.1.0
+# Until then, install it from a local checkout, e.g.:
+#   pip install -e /path/to/octopus-kraken-checkout[async]
