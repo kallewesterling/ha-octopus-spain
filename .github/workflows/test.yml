@@ -1,8 +1,9 @@
 name: Tests
 
 on:
+  # Trigger on any push (this repo is a fork, where the pull_request event does
+  # not fire reliably; the hassfest workflow uses the same bare-push pattern).
   push:
-    branches: [main]
   pull_request:
 
 permissions:
