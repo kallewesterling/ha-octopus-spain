@@ -17,6 +17,11 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from octopy.aio import AsyncKrakenGraphQLClient
+from octopy.exceptions import OctopyException
+
 from .const import (
     AUTH_OPTIONS,
     CONF_APIKEY,
@@ -25,9 +30,28 @@ from .const import (
     CONF_PASSWORD,
     DOMAIN,
 )
-from .lib.octopus_spain import OctopusSpain
 
 _LOGGER = logging.getLogger(__name__)
+
+# Octopus deployment this integration targets (see coordinator.COUNTRY).
+COUNTRY = "ES"
+
+
+async def _credentials_valid(hass, email, password, apikey) -> bool:
+    """Return True if a Kraken login succeeds with the given credentials."""
+    session = async_get_clientsession(hass)
+    try:
+        await AsyncKrakenGraphQLClient.login(
+            country=COUNTRY,
+            api_key=apikey or None,
+            email=email or None,
+            password=password or None,
+            session=session,
+        )
+        return True
+    except OctopyException as err:
+        _LOGGER.debug("Credential validation failed: %s", err)
+        return False
 
 AUTH_SELECTOR = SelectSelector(
     SelectSelectorConfig(options=AUTH_OPTIONS, mode=SelectSelectorMode.DROPDOWN, multiple=False)
@@ -130,8 +154,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         password = self._cached_data.get(CONF_PASSWORD)
         apikey = self._cached_data.get(CONF_APIKEY)
 
-        api = OctopusSpain(email, password, apikey)
-        if await api.login():
+        if await _credentials_valid(self.hass, email, password, apikey):
             data = {
                 CONF_AUTH_TYPE: auth_type,
                 CONF_EMAIL: email,
@@ -199,8 +222,7 @@ class OptionFlowHandler(config_entries.OptionsFlow):
         password = self._cached_data.get(CONF_PASSWORD)
         apikey = self._cached_data.get(CONF_APIKEY)
 
-        api = OctopusSpain(email, password, apikey)
-        if await api.login():
+        if await _credentials_valid(self.hass, email, password, apikey):
             data = {
                 CONF_AUTH_TYPE: auth_type,
                 CONF_EMAIL: email,

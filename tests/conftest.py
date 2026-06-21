@@ -1,9 +1,8 @@
 import os
-import pytest
-import aiohttp
-from dotenv import load_dotenv
 
-from custom_components.octopus_spain.lib.octopus_spain import OctopusSpain
+import aiohttp
+import pytest
+from dotenv import load_dotenv
 
 load_dotenv(".env.test")
 
@@ -27,34 +26,38 @@ def patch_aiohttp_dns():
     aiohttp.TCPConnector.__init__ = original_init
 
 
-def _live_client() -> OctopusSpain:
-    """Return a client configured from environment variables, or None."""
+def _live_config():
+    """Return octopy login kwargs from the environment, or None if unset."""
     apikey = os.getenv("OCTOPUS_APIKEY")
     email = os.getenv("OCTOPUS_EMAIL")
     password = os.getenv("OCTOPUS_PASSWORD")
     if not apikey and not (email and password):
         return None
-    return OctopusSpain(email=email, password=password, apikey=apikey)
+    return {"api_key": apikey, "email": email, "password": password}
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "live: requires real API credentials in .env.test")
+    config.addinivalue_line(
+        "markers", "live: requires real API credentials in .env.test"
+    )
 
 
 def pytest_collection_modifyitems(config, items):
     """Skip live tests automatically when credentials are not available."""
-    if _live_client() is not None:
+    if _live_config() is not None:
         return
-    skip = pytest.mark.skip(reason="No credentials found in .env.test — skipping live tests")
+    skip = pytest.mark.skip(
+        reason="No credentials found in .env.test — skipping live tests"
+    )
     for item in items:
         if item.get_closest_marker("live"):
             item.add_marker(skip)
 
 
 @pytest.fixture(scope="session")
-def live_client():
-    """Session-scoped client — login happens once for the whole test session."""
-    client = _live_client()
-    if client is None:
+def live_config():
+    """octopy login kwargs from .env.test (skips the test if none present)."""
+    cfg = _live_config()
+    if cfg is None:
         pytest.skip("No credentials found in .env.test")
-    return client
+    return cfg
